@@ -7,10 +7,10 @@ Interactive summary measures for epidemiology and biostatistics. Runs entirely i
 ---
 
 ## Tools
-
 | Page | What it does |
 |---|---|
-| `index.html` | 2×2 table analysis — OR, RR, PR, RD, NNT, AF, PAF, sens, spec, PPV, NPV, LRs, chi-square, Fisher's exact |
+| `index.html` | 2×2 table analysis — OR, RR, PR, RD, NNT, AF, PAF, chi-square, Fisher's exact |
+| `diagnostic.html` | Diagnostic accuracy — sensitivity, specificity, PPV, NPV, LR+, LR−, DOR, Youden's index, accuracy |
 | `predictive.html` | PPV/NPV prevalence adjustment — sliders for sensitivity, specificity, and population prevalence |
 | `mcnemar.html` | McNemar's test for paired proportions — corrected and uncorrected chi-square, difference in positive rates |
 | `proportion.html` | Single proportion CI — Wilson score, Wald, and Clopper-Pearson exact methods compared side by side |
