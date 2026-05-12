@@ -29,7 +29,11 @@ Interactive summary measures for epidemiology and biostatistics. Runs entirely i
 
 ## Citation
 
-If you use EpiTables in teaching or research, please cite the GitHub repository.
+If you use EpiTables in teaching or research, please cite:
+
+Subedi, R. (2026). EpiTables: Interactive summary measures for epidemiology and biostatistics (v1.0.1). Zenodo. https://doi.org/10.5281/zenodo.20135874
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20135874.svg)](https://doi.org/10.5281/zenodo.20135874)
 
 ---
 
