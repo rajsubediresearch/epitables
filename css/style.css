@@ -76,16 +76,23 @@ body {
 
 .site-nav {
   display: flex;
-  gap: 4px;
+  gap: 2px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  flex-shrink: 1;
+  min-width: 0;
 }
+.site-nav::-webkit-scrollbar { display: none; }
 
 .site-nav a {
   font-size: 13px;
   color: var(--text-secondary);
   text-decoration: none;
-  padding: 6px 12px;
+  padding: 6px 10px;
   border-radius: var(--radius-md);
   transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
 }
 
 .site-nav a:hover { background: var(--bg-secondary); color: var(--text); }
@@ -288,6 +295,15 @@ body {
   margin-top: 2px;
   font-family: var(--font-mono);
 }
+
+.metric-card-highlight {
+  border: 1.5px solid var(--accent);
+  background: var(--accent-bg);
+}
+
+.metric-card-highlight .m-label { color: var(--accent-text); }
+.metric-card-highlight .m-value { color: var(--accent-text); }
+.metric-card-highlight .m-ci    { color: var(--accent-text); opacity: 0.8; }
 
 .metric-card .m-interp {
   font-size: 12px;
