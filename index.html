@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EpiTables — 2×2 Table Analysis</title>
+  <meta name="description" content="Interactive epidemiology calculator: OR, RR, sensitivity, specificity, PPV, NPV, chi-square and more from a 2×2 contingency table.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&family=DM+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <a href="index.html" class="logo">Epi<span>Tables</span></a>
+  <nav class="site-nav">
+    <a href="index.html" class="active">2×2 table</a>
+    <a href="predictive.html">Predictive values</a>
+    <a href="mcnemar.html">McNemar's test</a>
+    <a href="proportion.html">Single proportion</a>
+  </nav>
+</header>
+
+<main class="page-wrap">
+  <div class="page-hero">
+    <h1>2×2 table analysis</h1>
+    <p>Enter exposure and outcome labels, choose your study design, then fill in the four cell counts. All measures update instantly.</p>
+  </div>
+
+  <!-- Input card -->
+  <div class="card">
+    <div class="section-label">Study variables</div>
+    <div class="field-row">
+      <label>Exposure</label>
+      <input type="text" id="expName" value="Smoking" oninput="update()">
+    </div>
+    <div class="field-row">
+      <label>Outcome</label>
+      <input type="text" id="outName" value="Lung Cancer" oninput="update()">
+    </div>
+
+    <div class="inner-divider">Study design</div>
+    <div class="pill-group">
+      <button class="pill-btn active" onclick="setDesign('cohort',this)">Cohort</button>
+      <button class="pill-btn" onclick="setDesign('casecontrol',this)">Case-control</button>
+      <button class="pill-btn" onclick="setDesign('crosssectional',this)">Cross-sectional</button>
+    </div>
+
+    <div class="inner-divider">Observed counts</div>
+    <table class="table-2x2">
+      <thead>
+        <tr>
+          <th></th>
+          <th id="hOut1">Outcome +</th>
+          <th id="hOut0">Outcome −</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="row-label" id="rExp">Exposed</td>
+          <td><input type="number" id="a" value="40" min="0" oninput="update()"></td>
+          <td><input type="number" id="b" value="60" min="0" oninput="update()"></td>
+          <td class="cell-total" id="r1">100</td>
+        </tr>
+        <tr>
+          <td class="row-label" id="rUnexp">Unexposed</td>
+          <td><input type="number" id="c" value="20" min="0" oninput="update()"></td>
+          <td><input type="number" id="d" value="80" min="0" oninput="update()"></td>
+          <td class="cell-total" id="r2">100</td>
+        </tr>
+        <tr>
+          <td class="row-label">Total</td>
+          <td class="cell-total" id="col1">60</td>
+          <td class="cell-total" id="col2">140</td>
+          <td class="cell-total" id="grand">200</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Tab bar -->
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="showTab('assoc',this)">Measures of association</button>
+    <button class="tab-btn" onclick="showTab('diag',this)">Diagnostic accuracy</button>
+    <button class="tab-btn" onclick="showTab('tests',this)">Hypothesis tests</button>
+  </div>
+
+  <div id="tab-assoc" class="tab-panel active">
+    <div class="card">
+      <div class="section-label">Association measures</div>
+      <div id="assocResults" class="metrics-grid"></div>
+    </div>
+  </div>
+
+  <div id="tab-diag" class="tab-panel">
+    <div class="card">
+      <div class="section-label">Diagnostic accuracy</div>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">
+        Interpreting the exposure as a test and the outcome as the true disease status.
+        PPV and NPV shown here are sample-based; use the
+        <a href="predictive.html">Predictive values</a> tool to adjust for prevalence.
+      </p>
+      <div id="diagResults" class="metrics-grid"></div>
+    </div>
+  </div>
+
+  <div id="tab-tests" class="tab-panel">
+    <div class="card">
+      <div class="section-label">Hypothesis tests</div>
+      <div id="testWarn"></div>
+      <div id="testResults"></div>
+    </div>
+  </div>
+</main>
+
+<footer class="site-footer">
+  EpiTables — summary measures for epidemiology &amp; biostatistics ·
+  <a href="https://github.com/yourusername/epitables" target="_blank">GitHub</a>
+</footer>
+
+<script src="js/stats.js"></script>
+<script>
+let design = 'cohort';
+
+function setDesign(d, btn) {
+  design = d;
+  document.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  update();
+}
+
+function showTab(id, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  btn.classList.add('active');
+}
+
+function getVals() {
+  return {
+    a: Math.max(0, parseFloat(document.getElementById('a').value) || 0),
+    b: Math.max(0, parseFloat(document.getElementById('b').value) || 0),
+    c: Math.max(0, parseFloat(document.getElementById('c').value) || 0),
+    d: Math.max(0, parseFloat(document.getElementById('d').value) || 0),
+    exp: document.getElementById('expName').value || 'Exposed',
+    out: document.getElementById('outName').value || 'Outcome'
+  };
+}
+
+function metricCard(label, value, ci, interp) {
+  return `<div class="metric-card">
+    <div class="m-label">${label}</div>
+    <div class="m-value">${value}</div>
+    ${ci ? `<div class="m-ci">${ci}</div>` : ''}
+    ${interp ? `<div class="m-interp">${interp}</div>` : ''}
+  </div>`;
+}
+
+function update() {
+  const { a, b, c, d, exp, out } = getVals();
+  const S = Stats;
+  const n1 = a+b, n2 = c+d, col1 = a+c, col2 = b+d, N = a+b+c+d;
+  const expP = exp + ' +', unExpP = exp + ' −';
+
+  // Update table headers and totals
+  document.getElementById('hOut1').textContent = out + ' +';
+  document.getElementById('hOut0').textContent = out + ' −';
+  document.getElementById('rExp').textContent = expP;
+  document.getElementById('rUnexp').textContent = unExpP;
+  document.getElementById('r1').textContent = n1;
+  document.getElementById('r2').textContent = n2;
+  document.getElementById('col1').textContent = col1;
+  document.getElementById('col2').textContent = col2;
+  document.getElementById('grand').textContent = N;
+
+  if (N < 4) {
+    ['assocResults','diagResults','testResults'].forEach(id =>
+      document.getElementById(id).innerHTML = '<p style="font-size:13px;color:var(--text-secondary)">Enter counts to see results.</p>');
+    return;
+  }
+
+  // --- Association ---
+  const OR = (a*d)/(b*c);
+  const [orLo, orHi] = S.logCI95(OR, a, b, c, d);
+  const RR = n1>0&&n2>0 ? (a/n1)/(c/n2) : null;
+  const [rrLo, rrHi] = S.rrLogCI95(a, b, c, d);
+  const RD = n1>0&&n2>0 ? a/n1 - c/n2 : null;
+  const [rdLo, rdHi] = S.rdCI95(a, b, c, d);
+  const NNT = RD && Math.abs(RD)>0 ? 1/Math.abs(RD) : null;
+  const AF = RR ? (RR-1)/RR : null;
+  const PAF = (N>0&&col1>0&&RR) ? ((col1/N)*(RR-1))/((col1/N)*(RR-1)+1) : null;
+
+  let assocHTML = '';
+  if (design === 'casecontrol') {
+    assocHTML += metricCard('Odds Ratio (OR)', S.fmt(OR), S.fmtCI(orLo,orHi),
+      `The odds of ${out} in ${expP} are ${S.fmt(OR)}× those of ${unExpP}.`);
+    assocHTML += metricCard('Risk Difference', S.fmt(RD,3), S.fmtCI(rdLo,rdHi,3),
+      `${RD>=0?'Excess':'Reduced'} absolute risk of ${S.fmt(Math.abs(RD)*100,1)}% attributable to ${exp}.`);
+  } else if (design === 'crosssectional') {
+    assocHTML += metricCard('Prevalence Ratio (PR)', S.fmt(RR), S.fmtCI(rrLo,rrHi),
+      `Prevalence of ${out} is ${S.fmt(RR)}× higher in ${expP} vs ${unExpP}.`);
+    assocHTML += metricCard('Odds Ratio (OR)', S.fmt(OR), S.fmtCI(orLo,orHi),
+      `The odds of ${out} in ${expP} are ${S.fmt(OR)}× those of ${unExpP}.`);
+    assocHTML += metricCard('Prevalence Difference', S.fmt(RD,3), S.fmtCI(rdLo,rdHi,3),
+      `Absolute prevalence difference of ${S.fmt(Math.abs(RD)*100,1)}% between groups.`);
+    assocHTML += metricCard('NNT / NNH', NNT ? S.fmt(NNT,1) : '—', '',
+      NNT ? `${S.fmt(NNT,1)} individuals exposed for 1 additional case of ${out}.` : '');
+  } else {
+    assocHTML += metricCard('Risk Ratio (RR)', S.fmt(RR), S.fmtCI(rrLo,rrHi),
+      `${expP} had ${S.fmt(RR)}× the risk of ${out} compared to ${unExpP}.`);
+    assocHTML += metricCard('Odds Ratio (OR)', S.fmt(OR), S.fmtCI(orLo,orHi),
+      `The odds of ${out} in ${expP} are ${S.fmt(OR)}× those of ${unExpP}.`);
+    assocHTML += metricCard('Risk Difference (RD)', S.fmt(RD,3), S.fmtCI(rdLo,rdHi,3),
+      `${RD>=0?'Excess':'Reduced'} absolute risk of ${S.fmt(Math.abs(RD)*100,1)}% attributable to ${exp}.`);
+    assocHTML += metricCard('NNT / NNH', NNT ? S.fmt(NNT,1) : '—', '',
+      NNT ? `${S.fmt(NNT,1)} people need ${RD>0?'exposure to':'protection from'} ${exp} for 1 additional case of ${out}.` : '');
+    assocHTML += metricCard('Attributable Fraction (exposed)', AF ? S.pct(AF) : '—', '',
+      AF ? `${S.pct(AF)} of ${out} cases in ${expP} are attributable to ${exp}.` : '');
+    assocHTML += metricCard('Population AF (PAF)', PAF ? S.pct(PAF) : '—', '',
+      PAF ? `${S.pct(PAF)} of all ${out} cases in the population are attributable to ${exp}.` : '');
+  }
+  document.getElementById('assocResults').innerHTML = assocHTML;
+
+  // --- Diagnostic ---
+  const sens = col1>0 ? a/col1 : null;
+  const spec = col2>0 ? d/col2 : null;
+  const ppv  = n1>0   ? a/n1   : null;
+  const npv  = n2>0   ? d/n2   : null;
+  const [sensLo,sensHi] = col1>0 ? S.wilson95(a,col1) : [null,null];
+  const [specLo,specHi] = col2>0 ? S.wilson95(d,col2) : [null,null];
+  const [ppvLo,ppvHi]   = n1>0   ? S.wilson95(a,n1)   : [null,null];
+  const [npvLo,npvHi]   = n2>0   ? S.wilson95(d,n2)   : [null,null];
+  const LRp = (sens!==null&&spec!==null&&spec<1) ? sens/(1-spec) : null;
+  const LRn = (sens!==null&&spec!==null&&sens<1) ? (1-sens)/spec : null;
+  const DOR = (LRp&&LRn&&LRn>0) ? LRp/LRn : null;
+  const Youden = (sens!==null&&spec!==null) ? sens+spec-1 : null;
+
+  document.getElementById('diagResults').innerHTML =
+    metricCard('Sensitivity', sens!==null?S.pct(sens):'—', S.fmtCI(sensLo,sensHi),
+      `Of all true ${out}+ cases, ${sens!==null?S.pct(sens):'—'} tested ${expP}.`) +
+    metricCard('Specificity', spec!==null?S.pct(spec):'—', S.fmtCI(specLo,specHi),
+      `Of all true ${out}− cases, ${spec!==null?S.pct(spec):'—'} tested ${unExpP}.`) +
+    metricCard('PPV', ppv!==null?S.pct(ppv):'—', S.fmtCI(ppvLo,ppvHi),
+      `Of those ${expP}, ${ppv!==null?S.pct(ppv):'—'} truly have ${out}.`) +
+    metricCard('NPV', npv!==null?S.pct(npv):'—', S.fmtCI(npvLo,npvHi),
+      `Of those ${unExpP}, ${npv!==null?S.pct(npv):'—'} truly do not have ${out}.`) +
+    metricCard('LR+', LRp!==null?S.fmt(LRp):'—', '',
+      LRp!==null?`A positive ${exp} result is ${S.fmt(LRp)}× more likely in ${out}+ vs ${out}−.`:'') +
+    metricCard('LR−', LRn!==null?S.fmt(LRn):'—', '',
+      LRn!==null?`A negative ${exp} result is ${S.fmt(LRn)}× as likely in ${out}+ vs ${out}−.`:'') +
+    metricCard('Diagnostic OR (DOR)', DOR!==null?S.fmt(DOR):'—', '',
+      DOR!==null?`Overall discriminatory power of ${exp} as a test for ${out}. Higher = better.`:'') +
+    metricCard("Youden's Index", Youden!==null?S.fmt(Youden):'—', '',
+      'Overall test performance (0 = no discrimination, 1 = perfect).');
+
+  // --- Tests ---
+  const smallCell = Math.min(a,b,c,d) < 5;
+  const { chi2, p: chiP } = S.chiSquare(a,b,c,d);
+  const fp = S.fisherExact(a,b,c,d);
+  const [wLo1, wHi1] = n1>0 ? S.wilson95(a,n1) : [null,null];
+  const [wLo2, wHi2] = n2>0 ? S.wilson95(c,n2) : [null,null];
+
+  document.getElementById('testWarn').innerHTML = smallCell
+    ? `<div class="warn-box">⚠ One or more cells &lt;5 — Fisher's exact p-value is preferred over chi-square.</div>` : '';
+
+  document.getElementById('testResults').innerHTML = `
+    <div class="test-result-row">
+      <div><div class="tr-name">Chi-square (Pearson, uncorrected)</div><div class="tr-sub">1 degree of freedom</div></div>
+      <div><div class="tr-val">χ² = ${S.fmt(chi2)}</div><div class="tr-p">p = ${S.fmtP(chiP)}</div></div>
+    </div>
+    <div class="test-result-row">
+      <div><div class="tr-name">Fisher's exact test</div><div class="tr-sub">Two-sided</div></div>
+      <div><div class="tr-val">p = ${S.fmtP(fp)}</div></div>
+    </div>
+    <div class="test-result-row">
+      <div><div class="tr-name">${expP} risk</div><div class="tr-sub">Wilson 95% CI</div></div>
+      <div><div class="tr-val">${n1>0?S.pct(a/n1):'—'}</div><div class="tr-p">${S.fmtCI(wLo1,wHi1)}</div></div>
+    </div>
+    <div class="test-result-row">
+      <div><div class="tr-name">${unExpP} risk</div><div class="tr-sub">Wilson 95% CI</div></div>
+      <div><div class="tr-val">${n2>0?S.pct(c/n2):'—'}</div><div class="tr-p">${S.fmtCI(wLo2,wHi2)}</div></div>
+    </div>`;
+}
+
+update();
+</script>
+</body>
+</html>

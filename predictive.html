@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EpiTables — Predictive Values</title>
+  <meta name="description" content="Calculate PPV and NPV adjusted for population prevalence. See how predictive values shift as prevalence changes.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&family=DM+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <a href="index.html" class="logo">Epi<span>Tables</span></a>
+  <nav class="site-nav">
+    <a href="index.html">2×2 table</a>
+    <a href="predictive.html" class="active">Predictive values</a>
+    <a href="mcnemar.html">McNemar's test</a>
+    <a href="proportion.html">Single proportion</a>
+  </nav>
+</header>
+
+<main class="page-wrap">
+  <div class="page-hero">
+    <h1>Predictive values</h1>
+    <p>PPV and NPV depend on disease prevalence in the population being tested — not just test sensitivity and specificity. Adjust the sliders to see how they shift.</p>
+  </div>
+
+  <div class="card">
+    <div class="section-label">Test and disease</div>
+    <div class="field-row">
+      <label>Test name</label>
+      <input type="text" id="testName" value="ELISA" oninput="update()">
+    </div>
+    <div class="field-row">
+      <label>Disease name</label>
+      <input type="text" id="disName" value="HIV" oninput="update()">
+    </div>
+
+    <div class="inner-divider">Test performance</div>
+    <div class="slider-row">
+      <label>Sensitivity (%)</label>
+      <input type="range" min="1" max="100" step="1" value="99" id="sens" oninput="update()">
+      <span class="slider-val" id="sensOut">99%</span>
+    </div>
+    <div class="slider-row">
+      <label>Specificity (%)</label>
+      <input type="range" min="1" max="100" step="1" value="99" id="spec" oninput="update()">
+      <span class="slider-val" id="specOut">99%</span>
+    </div>
+
+    <div class="inner-divider">Population prevalence</div>
+    <div class="slider-row">
+      <label>Prevalence (%)</label>
+      <input type="range" min="0.01" max="50" step="0.01" value="0.1" id="prev" oninput="update()">
+      <span class="slider-val" id="prevOut">0.10%</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-label">Results</div>
+    <div id="results" class="metrics-grid"></div>
+    <div id="interp" class="info-box" style="margin-top:12px"></div>
+  </div>
+
+  <div class="card">
+    <div class="section-label">About PPV and prevalence</div>
+    <p style="font-size:13px;color:var(--text-secondary);line-height:1.7">
+      PPV = TP / (TP + FP). When prevalence is very low, even a highly specific test produces many false positives relative to true positives,
+      because the number of disease-free individuals vastly outnumbers those with disease.
+      This is the basis of debates around mass screening programmes.
+      The formula is: PPV = (Sens × Prev) / (Sens × Prev + (1 − Spec) × (1 − Prev)).
+    </p>
+    <p style="font-size:13px;color:var(--text-secondary);line-height:1.7;margin-top:10px">
+      Likelihood ratios (LR+, LR−) are prevalence-independent and often more useful for communicating test performance across settings.
+    </p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  EpiTables — summary measures for epidemiology &amp; biostatistics ·
+  <a href="https://github.com/yourusername/epitables" target="_blank">GitHub</a>
+</footer>
+
+<script src="js/stats.js"></script>
+<script>
+function update() {
+  const sens = parseFloat(document.getElementById('sens').value) / 100;
+  const spec = parseFloat(document.getElementById('spec').value) / 100;
+  const prev = parseFloat(document.getElementById('prev').value) / 100;
+  const tName = document.getElementById('testName').value || 'Test';
+  const dName = document.getElementById('disName').value || 'Disease';
+  const S = Stats;
+
+  document.getElementById('sensOut').textContent = (sens*100).toFixed(0) + '%';
+  document.getElementById('specOut').textContent = (spec*100).toFixed(0) + '%';
+  document.getElementById('prevOut').textContent = (prev*100).toFixed(2) + '%';
+
+  const ppv = (sens * prev) / (sens * prev + (1 - spec) * (1 - prev));
+  const npv = (spec * (1 - prev)) / (spec * (1 - prev) + (1 - sens) * prev);
+  const lrp = sens / (1 - spec);
+  const lrn = (1 - sens) / spec;
+
+  function mc(label, value, interp) {
+    return `<div class="metric-card">
+      <div class="m-label">${label}</div>
+      <div class="m-value">${value}</div>
+      <div class="m-interp">${interp}</div>
+    </div>`;
+  }
+
+  document.getElementById('results').innerHTML =
+    mc('PPV', S.pct(ppv), `If ${tName} is positive, ${S.pct(ppv)} chance of truly having ${dName}.`) +
+    mc('NPV', S.pct(npv), `If ${tName} is negative, ${S.pct(npv)} chance of truly not having ${dName}.`) +
+    mc('LR+', S.fmt(lrp), `Positive ${tName} is ${S.fmt(lrp)}× more likely in ${dName}+ than ${dName}−.`) +
+    mc('LR−', S.fmt(lrn), `Negative ${tName} is ${S.fmt(lrn)}× as likely in ${dName}+ vs ${dName}−.`) +
+    mc('False Discovery Rate', S.pct(1 - ppv), `${S.pct(1-ppv)} of positive ${tName} results are false positives.`) +
+    mc('False Omission Rate', S.pct(1 - npv), `${S.pct(1-npv)} of negative ${tName} results are false negatives.`);
+
+  const note = ppv < 0.5
+    ? `At ${(prev*100).toFixed(2)}% prevalence, even a ${(sens*100).toFixed(0)}% sensitive ${tName} yields only <strong>${S.pct(ppv)}</strong> PPV — most positive results are false positives. Increase prevalence (or use a confirmatory test) to raise PPV.`
+    : `At ${(prev*100).toFixed(2)}% prevalence, PPV is <strong>${S.pct(ppv)}</strong> — most positive ${tName} results reflect true ${dName}.`;
+  document.getElementById('interp').innerHTML = note;
+}
+
+update();
+</script>
+</body>
+</html>

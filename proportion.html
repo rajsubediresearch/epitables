@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EpiTables — Single Proportion</title>
+  <meta name="description" content="Estimate a single proportion and its confidence interval. Choose from Wilson score, Wald, or Clopper-Pearson exact methods.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&family=DM+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <a href="index.html" class="logo">Epi<span>Tables</span></a>
+  <nav class="site-nav">
+    <a href="index.html">2×2 table</a>
+    <a href="predictive.html">Predictive values</a>
+    <a href="mcnemar.html">McNemar's test</a>
+    <a href="proportion.html" class="active">Single proportion</a>
+  </nav>
+</header>
+
+<main class="page-wrap">
+  <div class="page-hero">
+    <h1>Single proportion</h1>
+    <p>Estimate a proportion and its confidence interval from a count and sample size. Compare methods to understand how CI width and coverage differ.</p>
+  </div>
+
+  <div class="card">
+    <div class="section-label">Input</div>
+    <div class="field-row">
+      <label>Outcome label</label>
+      <input type="text" id="propLabel" value="Cases" oninput="update()">
+    </div>
+    <div class="field-row">
+      <label>Events (x)</label>
+      <input type="number" id="px" value="37" min="0" oninput="update()">
+    </div>
+    <div class="field-row">
+      <label>Sample size (n)</label>
+      <input type="number" id="pn" value="200" min="1" oninput="update()">
+    </div>
+
+    <div class="inner-divider">CI method</div>
+    <div class="pill-group">
+      <button class="pill-btn active" onclick="setMethod('wilson',this)">Wilson score</button>
+      <button class="pill-btn" onclick="setMethod('wald',this)">Wald</button>
+      <button class="pill-btn" onclick="setMethod('exact',this)">Clopper-Pearson</button>
+    </div>
+    <div id="methodNote" class="info-box" style="margin-top:4px"></div>
+  </div>
+
+  <div class="card">
+    <div class="section-label">Results</div>
+    <div id="warnArea"></div>
+    <div id="results" class="metrics-grid"></div>
+  </div>
+
+  <div class="card">
+    <div class="section-label">All three methods compared</div>
+    <div id="compareResults"></div>
+  </div>
+
+  <div class="card">
+    <div class="section-label">Choosing a method</div>
+    <div style="font-size:13px;color:var(--text-secondary);line-height:1.7">
+      <p style="margin-bottom:8px">
+        <strong style="color:var(--text);font-weight:500">Wilson score</strong> — recommended in most situations. Maintains close-to-nominal coverage even for small n and extreme proportions. Slightly asymmetric around the estimate.
+      </p>
+      <p style="margin-bottom:8px">
+        <strong style="color:var(--text);font-weight:500">Wald</strong> — the textbook "p ± 1.96 SE" interval. Simple and symmetric, but can produce intervals outside [0,1] and under-covers for small n or p near 0 or 1. Avoid when n &lt; 30 or p &lt; 0.1 or p &gt; 0.9.
+      </p>
+      <p>
+        <strong style="color:var(--text);font-weight:500">Clopper-Pearson (exact)</strong> — guaranteed to contain the true proportion at the stated confidence level (conservative). Wider than Wilson in most cases. Preferred for regulatory submissions or when strict coverage guarantees are needed.
+      </p>
+    </div>
+  </div>
+</main>
+
+<footer class="site-footer">
+  EpiTables — summary measures for epidemiology &amp; biostatistics ·
+  <a href="https://github.com/yourusername/epitables" target="_blank">GitHub</a>
+</footer>
+
+<script src="js/stats.js"></script>
+<script>
+let method = 'wilson';
+
+const methodNotes = {
+  wilson: 'Wilson score CI — recommended for most use cases. Good coverage even for small n and extreme proportions.',
+  wald: 'Wald CI — symmetric around the estimate. Use with caution when n &lt; 30 or p is near 0 or 1.',
+  exact: 'Clopper-Pearson exact CI — conservative but guaranteed coverage. Wider than Wilson in most cases.'
+};
+
+function setMethod(m, btn) {
+  method = m;
+  document.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  update();
+}
+
+function update() {
+  const x = parseFloat(document.getElementById('px').value)||0;
+  const n = parseFloat(document.getElementById('pn').value)||1;
+  const label = document.getElementById('propLabel').value || 'Events';
+  const S = Stats;
+
+  document.getElementById('methodNote').innerHTML = methodNotes[method];
+
+  if (x > n) {
+    document.getElementById('warnArea').innerHTML = '<div class="warn-box">⚠ Events cannot exceed sample size.</div>';
+    document.getElementById('results').innerHTML = '';
+    document.getElementById('compareResults').innerHTML = '';
+    return;
+  }
+
+  const p = x / n;
+  const waldWarn = method === 'wald' && (p < 0.1 || p > 0.9 || n < 30);
+  document.getElementById('warnArea').innerHTML = waldWarn
+    ? '<div class="warn-box">⚠ Wald CI performs poorly for extreme proportions (p &lt; 0.1 or p &gt; 0.9) or small n. Consider Wilson or Clopper-Pearson.</div>' : '';
+
+  let lo, hi;
+  if (method === 'wilson') [lo, hi] = S.wilson95(x, n);
+  else if (method === 'wald')  [lo, hi] = S.wald95(x, n);
+  else                          [lo, hi] = S.clopperpearson95(x, n);
+
+  const se = Math.sqrt(p*(1-p)/n);
+  const z  = se > 0 ? p/se : null;
+  const pval = z !== null ? 2*(1 - S.normalCDF(Math.abs(z))) : null;
+
+  function mc(label, value, ci, interp) {
+    return `<div class="metric-card">
+      <div class="m-label">${label}</div>
+      <div class="m-value">${value}</div>
+      ${ci ? `<div class="m-ci">${ci}</div>` : ''}
+      ${interp ? `<div class="m-interp">${interp}</div>` : ''}
+    </div>`;
+  }
+
+  document.getElementById('results').innerHTML =
+    mc('Proportion', S.pct(p), x + ' / ' + n,
+      `${x} ${label} observed in ${n} individuals.`) +
+    mc('95% CI', S.pct(lo) + ' – ' + S.pct(hi), '',
+      `The true proportion of ${label} lies between ${S.pct(lo)} and ${S.pct(hi)} with 95% confidence.`) +
+    mc('Standard error', S.fmt(se, 4), '',
+      `Variability of the estimated proportion across repeated samples of n = ${n}.`) +
+    mc('p-value (H₀: p = 0.5)', pval !== null ? S.fmtP(pval) : '—', '',
+      'Two-sided test that the true proportion differs from 50%.');
+
+  // All three methods compared
+  const [wLo,wHi] = S.wilson95(x,n);
+  const [dLo,dHi] = S.wald95(x,n);
+  const [eLo,eHi] = S.clopperpearson95(x,n);
+  const rows = [
+    ['Wilson score', wLo, wHi],
+    ['Wald', dLo, dHi],
+    ['Clopper-Pearson', eLo, eHi]
+  ];
+  document.getElementById('compareResults').innerHTML = rows.map(([name,lo,hi]) => `
+    <div class="test-result-row">
+      <div><div class="tr-name">${name}</div></div>
+      <div><div class="tr-val">${S.pct(lo)} – ${S.pct(hi)}</div><div class="tr-p">width: ${S.pct(hi-lo)}</div></div>
+    </div>`).join('');
+}
+
+update();
+</script>
+</body>
+</html>

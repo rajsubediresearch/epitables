@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EpiTables — McNemar's Test</title>
+  <meta name="description" content="McNemar's test for paired proportions. Corrected and uncorrected chi-square, difference in positive rates with CI.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&family=DM+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <a href="index.html" class="logo">Epi<span>Tables</span></a>
+  <nav class="site-nav">
+    <a href="index.html">2×2 table</a>
+    <a href="predictive.html">Predictive values</a>
+    <a href="mcnemar.html" class="active">McNemar's test</a>
+    <a href="proportion.html">Single proportion</a>
+  </nav>
+</header>
+
+<main class="page-wrap">
+  <div class="page-hero">
+    <h1>McNemar's test</h1>
+    <p>For matched pairs or repeated measures — tests whether two paired proportions differ significantly. Only discordant pairs (b and c) contribute to the test.</p>
+  </div>
+
+  <div class="card">
+    <div class="section-label">Variable labels</div>
+    <div class="field-row">
+      <label>Test / measure A</label>
+      <input type="text" id="mcA" value="Test A" oninput="update()">
+    </div>
+    <div class="field-row">
+      <label>Test / measure B</label>
+      <input type="text" id="mcB" value="Test B" oninput="update()">
+    </div>
+
+    <div class="inner-divider">Paired counts</div>
+    <table class="table-2x2">
+      <thead>
+        <tr>
+          <th></th>
+          <th id="hBp">Test B +</th>
+          <th id="hBn">Test B −</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="row-label" id="hAp">Test A +</td>
+          <td><input type="number" id="ma" value="80" min="0" oninput="update()"></td>
+          <td><input type="number" id="mb" value="15" min="0" oninput="update()"></td>
+          <td class="cell-total" id="mr1">95</td>
+        </tr>
+        <tr>
+          <td class="row-label" id="hAn">Test A −</td>
+          <td><input type="number" id="mc" value="5" min="0" oninput="update()"></td>
+          <td><input type="number" id="md" value="100" min="0" oninput="update()"></td>
+          <td class="cell-total" id="mr2">105</td>
+        </tr>
+        <tr>
+          <td class="row-label">Total</td>
+          <td class="cell-total" id="mc1">85</td>
+          <td class="cell-total" id="mc2">115</td>
+          <td class="cell-total" id="mN">200</td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="font-size:12px;color:var(--text-tertiary);margin-top:8px">
+      a = both positive (concordant) · b = A+/B− (discordant) · c = A−/B+ (discordant) · d = both negative (concordant)
+    </p>
+  </div>
+
+  <div class="card">
+    <div class="section-label">Results</div>
+    <div id="warnArea"></div>
+    <div id="results" class="metrics-grid"></div>
+  </div>
+
+  <div class="card">
+    <div class="section-label">About McNemar's test</div>
+    <p style="font-size:13px;color:var(--text-secondary);line-height:1.7">
+      McNemar's test is used when the same subjects are measured twice (e.g., before/after, two diagnostic tests on the same patients).
+      The test statistic uses only the discordant pairs — cells b and c — because concordant pairs (both positive or both negative) carry no information about whether the two conditions differ.
+    </p>
+    <p style="font-size:13px;color:var(--text-secondary);line-height:1.7;margin-top:10px">
+      The continuity-corrected version is preferred when b + c &lt; 25. For very small discordant counts, consider an exact binomial test (H₀: P(b) = 0.5 among discordant pairs).
+    </p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  EpiTables — summary measures for epidemiology &amp; biostatistics ·
+  <a href="https://github.com/yourusername/epitables" target="_blank">GitHub</a>
+</footer>
+
+<script src="js/stats.js"></script>
+<script>
+function update() {
+  const a = parseFloat(document.getElementById('ma').value)||0;
+  const b = parseFloat(document.getElementById('mb').value)||0;
+  const c = parseFloat(document.getElementById('mc').value)||0;
+  const d = parseFloat(document.getElementById('md').value)||0;
+  const tA = document.getElementById('mcA').value||'Test A';
+  const tB = document.getElementById('mcB').value||'Test B';
+  const N  = a+b+c+d;
+  const S  = Stats;
+
+  document.getElementById('hBp').textContent = tB + ' +';
+  document.getElementById('hBn').textContent = tB + ' −';
+  document.getElementById('hAp').textContent = tA + ' +';
+  document.getElementById('hAn').textContent = tA + ' −';
+  document.getElementById('mr1').textContent = a+b;
+  document.getElementById('mr2').textContent = c+d;
+  document.getElementById('mc1').textContent = a+c;
+  document.getElementById('mc2').textContent = b+d;
+  document.getElementById('mN').textContent  = N;
+
+  if (b+c === 0) {
+    document.getElementById('warnArea').innerHTML = '';
+    document.getElementById('results').innerHTML =
+      '<p style="font-size:13px;color:var(--text-secondary)">Both discordant cells (b, c) are zero — McNemar\'s test is not applicable.</p>';
+    return;
+  }
+
+  const mc = S.mcnemar(b, c, N);
+  const posA = N>0 ? (a+b)/N : 0;
+  const posB = N>0 ? (a+c)/N : 0;
+  const diff = posA - posB;
+  const [ciLo, ciHi] = [diff - 1.96*mc.se_diff, diff + 1.96*mc.se_diff];
+
+  const smallDisc = (b+c) < 25;
+  document.getElementById('warnArea').innerHTML = smallDisc
+    ? '<div class="warn-box">⚠ Discordant pairs (b+c) &lt; 25 — continuity-corrected version is preferred.</div>' : '';
+
+  function mc_card(label, value, ci, interp) {
+    return `<div class="metric-card">
+      <div class="m-label">${label}</div>
+      <div class="m-value">${value}</div>
+      ${ci ? `<div class="m-ci">${ci}</div>` : ''}
+      ${interp ? `<div class="m-interp">${interp}</div>` : ''}
+    </div>`;
+  }
+
+  document.getElementById('results').innerHTML =
+    mc_card('McNemar\'s χ² (corrected)', S.fmt(mc.chi2_corr), 'p = ' + S.fmtP(mc.p_corr),
+      'With continuity correction — use when b+c &lt; 25.') +
+    mc_card('McNemar\'s χ² (uncorrected)', S.fmt(mc.chi2_uncorr), 'p = ' + S.fmtP(mc.p_uncorr),
+      'Without continuity correction — preferred for larger samples.') +
+    mc_card('Positive rate: ' + tA, S.pct(posA), '',
+      `${a+b} of ${N} pairs were positive on ${tA}.`) +
+    mc_card('Positive rate: ' + tB, S.pct(posB), '',
+      `${a+c} of ${N} pairs were positive on ${tB}.`) +
+    mc_card('Difference in rates', S.fmt(diff,3), '95% CI: ' + S.fmt(ciLo,3) + ' – ' + S.fmt(ciHi,3),
+      `${tA} positive rate is ${S.fmt(Math.abs(diff)*100,1)}% ${diff>=0?'higher':'lower'} than ${tB}.`) +
+    mc_card('Discordant pairs (b+c)', b+c, '',
+      `Only these ${b+c} pairs inform the test. Concordant pairs (a=${a}, d=${d}) do not contribute.`);
+}
+
+update();
+</script>
+</body>
+</html>
