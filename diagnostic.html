@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EpiTables — Diagnostic Accuracy</title>
+  <meta name="description" content="Calculate sensitivity, specificity, PPV, NPV, likelihood ratios, diagnostic OR, and Youden's index from a screening or diagnostic test table.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&family=DM+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <a href="index.html" class="logo">Epi<span>Tables</span></a>
+  <nav class="site-nav">
+    <a href="index.html">2×2 table</a>
+    <a href="diagnostic.html" class="active">Diagnostic accuracy</a>
+    <a href="predictive.html">Predictive values</a>
+    <a href="mcnemar.html">McNemar's test</a>
+    <a href="proportion.html">Single proportion</a>
+  </nav>
+</header>
+
+<main class="page-wrap">
+  <div class="page-hero">
+    <h1>Diagnostic accuracy</h1>
+    <p>Enter your screening or diagnostic test name, the reference standard (true disease status), and the four cell counts. All measures update instantly.</p>
+  </div>
+
+  <div class="card">
+    <div class="section-label">Test and disease</div>
+    <div class="field-row">
+      <label>Test / screen</label>
+      <input type="text" id="testName" value="Rapid Strep Test" oninput="update()">
+    </div>
+    <div class="field-row">
+      <label>Disease / condition</label>
+      <input type="text" id="disName" value="Strep Throat" oninput="update()">
+    </div>
+
+    <div class="inner-divider">Context</div>
+    <div class="pill-group">
+      <button class="pill-btn active" onclick="setContext('diagnosis',this)">Diagnosis</button>
+      <button class="pill-btn" onclick="setContext('screening',this)">Screening</button>
+    </div>
+    <div id="contextNote" class="info-box" style="margin-top:8px;margin-bottom:4px"></div>
+
+    <div class="inner-divider">Observed counts</div>
+    <table class="table-2x2">
+      <thead>
+        <tr>
+          <th></th>
+          <th id="hDis1">Disease +</th>
+          <th id="hDis0">Disease −</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="row-label" id="rTestP">Test +</td>
+          <td><input type="number" id="a" value="85" min="0" oninput="update()"></td>
+          <td><input type="number" id="b" value="10" min="0" oninput="update()"></td>
+          <td class="cell-total" id="r1">95</td>
+        </tr>
+        <tr>
+          <td class="row-label" id="rTestN">Test −</td>
+          <td><input type="number" id="c" value="15" min="0" oninput="update()"></td>
+          <td><input type="number" id="d" value="190" min="0" oninput="update()"></td>
+          <td class="cell-total" id="r2">205</td>
+        </tr>
+        <tr>
+          <td class="row-label">Total</td>
+          <td class="cell-total" id="col1">100</td>
+          <td class="cell-total" id="col2">200</td>
+          <td class="cell-total" id="grand">300</td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="font-size:12px;color:var(--text-tertiary);margin-top:8px">
+      a = true positive · b = false positive · c = false negative · d = true negative
+    </p>
+  </div>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="showTab('accuracy',this)">Test accuracy</button>
+    <button class="tab-btn" onclick="showTab('predictive',this)">Predictive values</button>
+    <button class="tab-btn" onclick="showTab('tests',this)">Hypothesis tests</button>
+  </div>
+
+  <div id="tab-accuracy" class="tab-panel active">
+    <div class="card">
+      <div class="section-label">Accuracy measures</div>
+      <div id="accuracyResults" class="metrics-grid"></div>
+    </div>
+  </div>
+
+  <div id="tab-predictive" class="tab-panel">
+    <div class="card">
+      <div class="section-label">Predictive values</div>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;line-height:1.6">
+        PPV and NPV below are sample-based — they reflect the disease prevalence in your study sample.
+        In practice, predictive values change with population prevalence.
+        Use the <a href="predictive.html">Predictive values tool</a> to adjust sensitivity and specificity to any prevalence.
+      </p>
+      <div id="predictiveResults" class="metrics-grid"></div>
+    </div>
+  </div>
+
+  <div id="tab-tests" class="tab-panel">
+    <div class="card">
+      <div class="section-label">Hypothesis tests</div>
+      <div id="testWarn"></div>
+      <div id="testResults"></div>
+    </div>
+  </div>
+</main>
+
+<footer class="site-footer">
+  EpiTables — summary measures for epidemiology &amp; biostatistics ·
+  <a href="https://github.com/rajsubediresearch/epitables" target="_blank">GitHub</a>
+</footer>
+
+<script src="js/stats.js"></script>
+<script>
+let context = 'diagnosis';
+
+const contextNotes = {
+  diagnosis: 'Diagnosis context: the test is applied to symptomatic patients to confirm or rule out a condition. High sensitivity (to avoid missing cases) and high specificity (to avoid unnecessary treatment) are both important.',
+  screening: 'Screening context: the test is applied to asymptomatic populations. High sensitivity is typically prioritized to catch all true cases, accepting more false positives that can be resolved with confirmatory testing.'
+};
+
+function setContext(c, btn) {
+  context = c;
+  document.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('contextNote').textContent = contextNotes[c];
+  update();
+}
+
+function showTab(id, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  btn.classList.add('active');
+}
+
+function getVals() {
+  return {
+    a: Math.max(0, parseFloat(document.getElementById('a').value) || 0),
+    b: Math.max(0, parseFloat(document.getElementById('b').value) || 0),
+    c: Math.max(0, parseFloat(document.getElementById('c').value) || 0),
+    d: Math.max(0, parseFloat(document.getElementById('d').value) || 0),
+    test: document.getElementById('testName').value || 'Test',
+    dis:  document.getElementById('disName').value || 'Disease'
+  };
+}
+
+function metricCard(label, value, ci, interp, highlight) {
+  return `<div class="metric-card${highlight?' metric-card-highlight':''}">
+    <div class="m-label">${label}</div>
+    <div class="m-value">${value}</div>
+    ${ci ? `<div class="m-ci">${ci}</div>` : ''}
+    ${interp ? `<div class="m-interp">${interp}</div>` : ''}
+  </div>`;
+}
+
+function update() {
+  const { a, b, c, d, test, dis } = getVals();
+  const S = Stats;
+  const n1 = a+b, n2 = c+d, col1 = a+c, col2 = b+d, N = a+b+c+d;
+
+  document.getElementById('hDis1').textContent = dis + ' +';
+  document.getElementById('hDis0').textContent = dis + ' −';
+  document.getElementById('rTestP').textContent = test + ' +';
+  document.getElementById('rTestN').textContent = test + ' −';
+  document.getElementById('r1').textContent = n1;
+  document.getElementById('r2').textContent = n2;
+  document.getElementById('col1').textContent = col1;
+  document.getElementById('col2').textContent = col2;
+  document.getElementById('grand').textContent = N;
+  document.getElementById('contextNote').textContent = contextNotes[context];
+
+  if (N < 4) {
+    ['accuracyResults','predictiveResults','testResults'].forEach(id =>
+      document.getElementById(id).innerHTML = '<p style="font-size:13px;color:var(--text-secondary)">Enter counts to see results.</p>');
+    return;
+  }
+
+  // Core measures
+  const sens   = col1>0 ? a/col1 : null;
+  const spec   = col2>0 ? d/col2 : null;
+  const ppv    = n1>0   ? a/n1   : null;
+  const npv    = n2>0   ? d/n2   : null;
+  const fpr    = col2>0 ? b/col2 : null;  // false positive rate = 1 - spec
+  const fnr    = col1>0 ? c/col1 : null;  // false negative rate = 1 - sens
+  const fdr    = n1>0   ? b/n1   : null;  // false discovery rate = 1 - ppv
+  const fomir  = n2>0   ? c/n2   : null;  // false omission rate = 1 - npv
+  const acc    = N>0    ? (a+d)/N : null;
+
+  const [sensLo,sensHi] = col1>0 ? S.wilson95(a,col1) : [null,null];
+  const [specLo,specHi] = col2>0 ? S.wilson95(d,col2) : [null,null];
+  const [ppvLo, ppvHi]  = n1>0   ? S.wilson95(a,n1)   : [null,null];
+  const [npvLo, npvHi]  = n2>0   ? S.wilson95(d,n2)   : [null,null];
+  const [accLo, accHi]  = N>0    ? S.wilson95(a+d,N)  : [null,null];
+
+  const LRp    = (sens!==null&&spec!==null&&spec<1)  ? sens/(1-spec)   : null;
+  const LRn    = (sens!==null&&spec!==null&&sens<1)  ? (1-sens)/spec   : null;
+  const DOR    = (LRp&&LRn&&LRn>0)                  ? LRp/LRn         : null;
+  const Youden = (sens!==null&&spec!==null)          ? sens+spec-1     : null;
+
+  // Highlight which metric matters more by context
+  const sensHL = context === 'screening';
+  const specHL = context === 'diagnosis';
+
+  document.getElementById('accuracyResults').innerHTML =
+    metricCard('Sensitivity', sens!==null?S.pct(sens):'—', S.fmtCI(sensLo,sensHi),
+      `Of all true ${dis}+ cases, ${sens!==null?S.pct(sens):'—'} tested positive on ${test}.`, sensHL) +
+    metricCard('Specificity', spec!==null?S.pct(spec):'—', S.fmtCI(specLo,specHi),
+      `Of all true ${dis}− individuals, ${spec!==null?S.pct(spec):'—'} tested negative on ${test}.`, specHL) +
+    metricCard('False Positive Rate', fpr!==null?S.pct(fpr):'—', '',
+      `${fpr!==null?S.pct(fpr):'—'} of true ${dis}− individuals tested positive (= 1 − specificity).`) +
+    metricCard('False Negative Rate', fnr!==null?S.pct(fnr):'—', '',
+      `${fnr!==null?S.pct(fnr):'—'} of true ${dis}+ cases tested negative (= 1 − sensitivity).`) +
+    metricCard('LR+', LRp!==null?S.fmt(LRp):'—', '',
+      LRp!==null?`A positive ${test} result is ${S.fmt(LRp)}× more likely in ${dis}+ than ${dis}−.`:'') +
+    metricCard('LR−', LRn!==null?S.fmt(LRn):'—', '',
+      LRn!==null?`A negative ${test} result is ${S.fmt(LRn)}× as likely in ${dis}+ vs ${dis}−. Values &lt;0.1 are strong evidence against disease.`:'') +
+    metricCard('Diagnostic OR (DOR)', DOR!==null?S.fmt(DOR):'—', '',
+      DOR!==null?`Overall discriminatory power of ${test} for ${dis}. Higher = better.`:'') +
+    metricCard("Youden's Index", Youden!==null?S.fmt(Youden):'—', '',
+      'Overall test performance (0 = no discrimination, 1 = perfect). Equals sensitivity + specificity − 1.') +
+    metricCard('Accuracy', acc!==null?S.pct(acc):'—', S.fmtCI(accLo,accHi),
+      `${acc!==null?S.pct(acc):'—'} of all ${N} individuals were correctly classified by ${test}.`);
+
+  document.getElementById('predictiveResults').innerHTML =
+    metricCard('PPV', ppv!==null?S.pct(ppv):'—', S.fmtCI(ppvLo,ppvHi),
+      `Of those who tested positive on ${test}, ${ppv!==null?S.pct(ppv):'—'} truly have ${dis}.`) +
+    metricCard('NPV', npv!==null?S.pct(npv):'—', S.fmtCI(npvLo,npvHi),
+      `Of those who tested negative on ${test}, ${npv!==null?S.pct(npv):'—'} truly do not have ${dis}.`) +
+    metricCard('False Discovery Rate', fdr!==null?S.pct(fdr):'—', '',
+      `${fdr!==null?S.pct(fdr):'—'} of positive ${test} results are false positives (= 1 − PPV).`) +
+    metricCard('False Omission Rate', fomir!==null?S.pct(fomir):'—', '',
+      `${fomir!==null?S.pct(fomir):'—'} of negative ${test} results are false negatives (= 1 − NPV).`) +
+    metricCard('Sample prevalence', col1>0&&N>0?S.pct(col1/N):'—', S.fmtCI(...(N>0?S.wilson95(col1,N):[null,null])),
+      `${dis} prevalence in this sample. PPV and NPV will differ at other prevalences — see <a href="predictive.html">Predictive values tool</a>.`);
+
+  // Tests
+  const smallCell = Math.min(a,b,c,d) < 5;
+  const { chi2, p: chiP } = S.chiSquare(a,b,c,d);
+  const fp_val = S.fisherExact(a,b,c,d);
+
+  document.getElementById('testWarn').innerHTML = smallCell
+    ? `<div class="warn-box">⚠ One or more cells &lt;5 — Fisher's exact p-value is preferred over chi-square.</div>` : '';
+
+  document.getElementById('testResults').innerHTML = `
+    <div class="test-result-row">
+      <div><div class="tr-name">Chi-square (Pearson, uncorrected)</div><div class="tr-sub">Tests whether test result and disease status are independent</div></div>
+      <div><div class="tr-val">χ² = ${S.fmt(chi2)}</div><div class="tr-p">p = ${S.fmtP(chiP)}</div></div>
+    </div>
+    <div class="test-result-row">
+      <div><div class="tr-name">Fisher's exact test</div><div class="tr-sub">Two-sided</div></div>
+      <div><div class="tr-val">p = ${S.fmtP(fp_val)}</div></div>
+    </div>
+    <div class="test-result-row">
+      <div><div class="tr-name">True positives (TP)</div><div class="tr-sub">${dis}+ who tested positive</div></div>
+      <div><div class="tr-val">${a}</div></div>
+    </div>
+    <div class="test-result-row">
+      <div><div class="tr-name">False positives (FP)</div><div class="tr-sub">${dis}− who tested positive</div></div>
+      <div><div class="tr-val">${b}</div></div>
+    </div>
+    <div class="test-result-row">
+      <div><div class="tr-name">False negatives (FN)</div><div class="tr-sub">${dis}+ who tested negative</div></div>
+      <div><div class="tr-val">${c}</div></div>
+    </div>
+    <div class="test-result-row">
+      <div><div class="tr-name">True negatives (TN)</div><div class="tr-sub">${dis}− who tested negative</div></div>
+      <div><div class="tr-val">${d}</div></div>
+    </div>`;
+}
+
+update();
+</script>
+</body>
+</html>
